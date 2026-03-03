@@ -1,0 +1,331 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=yes">
+  <title>ChronoForge · 和暦 · Japanese Calendar</title>
+  
+  <!-- External CSS (all styling here) -->
+  <link rel="stylesheet" href="style.css">
+  
+  <!-- Minimal inline: just FOUC prevention and language base -->
+  <style>
+    body { opacity: 0; transition: opacity 0.2s; }
+    body.ready { opacity: 1; }
+    body.lang-japanese .weekdays-en { display: none; }
+    body.lang-english .weekdays-jp { display: none; }
+    body.lang-bilingual .weekdays-jp,
+    body.lang-bilingual .weekdays-en { display: grid; }
+  </style>
+</head>
+<body class="lang-bilingual">
+
+  <!-- MAIN HEADER -->
+  <header class="main-header">
+    <div class="header-top">
+      <h1>ChronoForge <span class="subhead" id="headerSubhead">· 和暦</span></h1>
+      <div class="era-badge" id="eraBadge" role="status" aria-live="polite">令和6年 · Reiwa 6</div>
+    </div>
+    
+    <!-- Navigation Bar -->
+    <div class="header-nav" role="navigation">
+      <button class="nav-arrow" id="prevYear" aria-label="前年 | Previous year">◀◀</button>
+      <button class="nav-arrow" id="prevMonth" aria-label="前月 | Previous month">◀</button>
+      
+      <div class="current-display" aria-live="polite">
+        <span class="gregorian-display" id="headerGregorian">March 2024</span>
+        <span class="japanese-display" id="headerJapanese">令和6年 · 弥生</span>
+      </div>
+      
+      <button class="nav-arrow" id="nextMonth" aria-label="翌月 | Next month">▶</button>
+      <button class="nav-arrow" id="nextYear" aria-label="翌年 | Next year">▶▶</button>
+      
+      <button id="toggleToday" class="today-btn" aria-label="今日 | Today">
+        <span class="today-icon">📅</span>
+        <span id="todayText">今日</span>
+      </button>
+      <button id="settingsToggle" class="settings-btn" aria-label="設定 | Settings">⚙️</button>
+    </div>
+
+    <!-- Settings Menu -->
+    <div id="settingsMenu" class="settings-menu hidden">
+      <div class="setting-group">
+        <label for="detailLevel" id="detailLevelLabel">表示レベル:</label>
+        <select id="detailLevel">
+          <option value="basic" id="detailBasic">基本</option>
+          <option value="standard" selected id="detailStandard">標準</option>
+          <option value="complete" id="detailComplete">詳細</option>
+        </select>
+      </div>
+      <div class="setting-group">
+        <label for="languagePreference" id="languageLabel">言語:</label>
+        <select id="languagePreference">
+          <option value="japanese" id="langJapanese">日本語</option>
+          <option value="english" id="langEnglish">English</option>
+          <option value="bilingual" selected id="langBilingual">日本語/English</option>
+        </select>
+      </div>
+      <div class="setting-group checkbox">
+        <input type="checkbox" id="showRokuyo" checked>
+        <label for="showRokuyo" id="settingRokuyoLabel">六曜</label>
+      </div>
+      <div class="setting-group checkbox">
+        <input type="checkbox" id="showFestivals" checked>
+        <label for="showFestivals" id="settingFestivalLabel">五節句</label>
+      </div>
+      <div class="setting-group checkbox">
+        <input type="checkbox" id="showZassetsu">
+        <label for="showZassetsu" id="settingZassetsuLabel">雑節</label>
+      </div>
+      <div class="setting-group checkbox">
+        <input type="checkbox" id="showSolarTerms" checked>
+        <label for="showSolarTerms" id="settingSolarLabel">二十四節気</label>
+      </div>
+      <div class="setting-group checkbox">
+        <input type="checkbox" id="compactMode" checked>
+        <label for="compactMode" id="compactLabel">コンパクト</label>
+      </div>
+      <div class="setting-group checkbox">
+        <input type="checkbox" id="ultraCompact">
+        <label for="ultraCompact" id="ultraLabel">超コンパクト</label>
+      </div>
+      <div class="setting-group">
+        <button id="resetSettings" class="reset-btn">↺ リセット</button>
+      </div>
+    </div>
+  </header>
+
+  <!-- ERA BAR -->
+  <div class="era-bar">
+    <div class="era-item" id="eraYear">令和6年</div>
+    <div class="era-item" id="japaneseMonth">弥生</div>
+    <div class="era-item" id="rokuyoToday">大安</div>
+    <div class="era-item" id="solarTerm">春分</div>
+    <div class="era-item warning-badge" id="rangeWarning" role="alert"></div>
+  </div>
+
+  <!-- MAIN CALENDAR -->
+  <main id="main-content">
+    <!-- Month Metadata -->
+    <div class="month-metadata">
+      <div class="metadata-item">
+        <span class="metadata-label" id="monthNameLabel">和暦月</span>
+        <span class="metadata-value" id="japaneseMonthName">弥生</span>
+      </div>
+      <div class="metadata-item">
+        <span class="metadata-label" id="monthDaysLabel">日数</span>
+        <span class="metadata-value" id="monthDays">31日</span>
+      </div>
+      <div class="metadata-item">
+        <span class="metadata-label" id="festivalLabel">五節句</span>
+        <span class="metadata-value" id="monthFestival">—</span>
+      </div>
+      <div class="metadata-item">
+        <span class="metadata-label" id="zassetsuLabel">雑節</span>
+        <span class="metadata-value" id="monthZassetsu">—</span>
+      </div>
+    </div>
+
+    <!-- Weekday Headers - Static JP/EN rows, toggled via CSS -->
+    <div class="weekdays-container">
+      <div class="weekdays weekdays-jp">
+        <span>日</span><span>月</span><span>火</span><span>水</span><span>木</span><span>金</span><span>土</span>
+      </div>
+      <div class="weekdays weekdays-en">
+        <span>Sun</span><span>Mon</span><span>Tue</span><span>Wed</span><span>Thu</span><span>Fri</span><span>Sat</span>
+      </div>
+    </div>
+
+    <!-- Days Grid -->
+    <div id="daysContainer" class="days-grid" role="grid"></div>
+
+    <!-- Festival Notice (hidden by default) -->
+    <div id="festivalNotice" class="festival-notice hidden" role="status"></div>
+
+    <!-- Festival Countdown (cherry on top) -->
+    <div id="festivalCountdown" class="festival-countdown hidden"></div>
+
+    <!-- Error Boundary (hidden by default) -->
+    <div id="errorBoundary" class="error-boundary hidden" role="alert">
+      <span id="errorMessage"></span>
+      <button id="errorRetry">再試行</button>
+    </div>
+  </main>
+
+  <!-- INFO PANEL -->
+  <aside class="info-panel" id="infoPanel">
+    <div class="info-row-group">
+      <div class="info-section">
+        <h3 id="gregorianTitle">グレゴリオ暦</h3>
+        <div class="info-item highlight">
+          <span class="info-label" id="dateLabel">日付</span>
+          <span id="infoGregorian">—</span>
+        </div>
+        <div class="info-item">
+          <span class="info-label" id="weekdayLabel">曜日</span>
+          <span id="infoWeekday">—</span>
+        </div>
+      </div>
+      
+      <div class="info-section">
+        <h3 id="japaneseTitle">和暦</h3>
+        <div class="info-item">
+          <span class="info-label" id="eraLabel">元号</span>
+          <span id="infoEra">—</span>
+        </div>
+        <div class="info-item">
+          <span class="info-label" id="japaneseMonthLabel">月</span>
+          <span id="infoJapaneseMonth">—</span>
+        </div>
+        <div class="info-item">
+          <span class="info-label" id="japaneseDayLabel">日</span>
+          <span id="infoJapaneseDay">—</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="info-row-group">
+      <div class="info-section">
+        <h3 id="rokuyoTitle">六曜</h3>
+        <div class="info-item" id="rokuyoDisplay">
+          <span class="info-label" id="rokuyoLabel">本日</span>
+          <span id="infoRokuyo">—</span>
+        </div>
+        <div class="info-item">
+          <span class="info-label" id="rokuyoMeaningLabel">意味</span>
+          <span id="infoRokuyoMeaning">—</span>
+        </div>
+        <div class="info-item">
+          <span class="info-label" id="rokuyoFortuneLabel">運勢</span>
+          <span id="infoRokuyoFortune">—</span>
+        </div>
+      </div>
+
+      <div class="info-section">
+        <h3 id="festivalTitle">節句</h3>
+        <div class="info-item">
+          <span class="info-label" id="festivalTodayLabel">本日</span>
+          <span id="infoFestival">—</span>
+        </div>
+        <div class="info-item">
+          <span class="info-label" id="festivalNextLabel">次</span>
+          <span id="infoNextFestival">—</span>
+        </div>
+        <!-- Festival holiday name (cherry on top) -->
+        <div class="info-item" id="festivalHolidayRow">
+          <span class="info-label" id="festivalHolidayLabel">別名</span>
+          <span id="infoFestivalHoliday">—</span>
+        </div>
+        <!-- Festival countdown (cherry on top) -->
+        <div class="info-item" id="festivalCountdownRow">
+          <span class="info-label" id="festivalCountdownLabel">まで</span>
+          <span id="infoFestivalCountdown">—</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="info-section" id="solarTermSection">
+      <h3 id="solarTermTitle">二十四節気</h3>
+      <div class="term-display">
+        <span id="currentTerm">—</span>
+        <span id="nextTerm">—</span>
+      </div>
+      <div class="term-progress-container">
+        <div class="term-progress" id="termProgress" style="width: 0%"></div>
+      </div>
+    </div>
+
+    <div class="info-section hidden" id="zassetsuSection">
+      <h3 id="zassetsuTitle">雑節</h3>
+      <div class="zassetsu-grid" id="zassetsuGrid"></div>
+    </div>
+
+    <div class="info-section range-warning hidden" id="rangeWarningSection">
+      <p id="rangeWarningMessage"></p>
+    </div>
+
+    <!-- Share button (cherry on top, optional) -->
+    <div class="info-section share-section" id="shareSection">
+      <button id="shareDate" class="share-btn" aria-label="共有 | Share">↗️ <span id="shareText">共有</span></button>
+    </div>
+
+    <div class="info-note" id="dataSourceNote">
+      国立天文台 · 六曜基準:1927
+    </div>
+  </aside>
+
+  <!-- FOOTER LEGEND -->
+  <footer class="calendar-legend">
+    <!-- Rokuyo Legend -->
+    <div class="legend-rokuyo">
+      <div class="legend-item" data-rokuyo="sensho">
+        <span class="rokuyo-dot sensho"></span>
+        <span class="legend-text" id="rokuyoSensho">先勝</span>
+      </div>
+      <div class="legend-item" data-rokuyo="tomobiki">
+        <span class="rokuyo-dot tomobiki"></span>
+        <span class="legend-text" id="rokuyoTomobiki">友引</span>
+      </div>
+      <div class="legend-item" data-rokuyo="senbu">
+        <span class="rokuyo-dot senbu"></span>
+        <span class="legend-text" id="rokuyoSenbu">先負</span>
+      </div>
+      <div class="legend-item" data-rokuyo="butsumetsu">
+        <span class="rokuyo-dot butsumetsu"></span>
+        <span class="legend-text" id="rokuyoButsumetsu">仏滅</span>
+      </div>
+      <div class="legend-item" data-rokuyo="taian">
+        <span class="rokuyo-dot taian"></span>
+        <span class="legend-text" id="rokuyoTaian">大安</span>
+      </div>
+      <div class="legend-item" data-rokuyo="shakko">
+        <span class="rokuyo-dot shakko"></span>
+        <span class="legend-text" id="rokuyoShakko">赤口</span>
+      </div>
+    </div>
+
+    <!-- Festivals Legend -->
+    <div class="legend-festivals">
+      <div class="legend-item">
+        <span class="festival-emoji">🎍</span>
+        <span class="legend-text" id="festivalJinjitsu">人日</span>
+        <span class="festival-holiday" id="festivalJinjitsuHoliday">七草粥</span>
+      </div>
+      <div class="legend-item">
+        <span class="festival-emoji">🎎</span>
+        <span class="legend-text" id="festivalJoshi">上巳</span>
+        <span class="festival-holiday" id="festivalJoshiHoliday">雛祭り</span>
+      </div>
+      <div class="legend-item">
+        <span class="festival-emoji">🎏</span>
+        <span class="legend-text" id="festivalTango">端午</span>
+        <span class="festival-holiday" id="festivalTangoHoliday">こどもの日</span>
+      </div>
+      <div class="legend-item">
+        <span class="festival-emoji">🎋</span>
+        <span class="legend-text" id="festivalTanabata">七夕</span>
+        <span class="festival-holiday" id="festivalTanabataHoliday">七夕</span>
+      </div>
+      <div class="legend-item">
+        <span class="festival-emoji">🌼</span>
+        <span class="legend-text" id="festivalChoyo">重陽</span>
+        <span class="festival-holiday" id="festivalChoyoHoliday">菊の節句</span>
+      </div>
+    </div>
+
+    <div class="legend-disclaimer" id="legendDisclaimer">
+      <span id="disclaimerText">1873–present · 六曜基準:1927</span>
+    </div>
+  </footer>
+
+  <!-- TOAST -->
+  <div id="toast" class="toast hidden" role="status"></div>
+
+  <!-- FOUC prevention -->
+  <script>
+    document.body.classList.add('ready');
+  </script>
+
+  <script src="script.js"></script>
+</body>
+</html>
